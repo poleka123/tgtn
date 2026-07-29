@@ -3,7 +3,6 @@ import os
 import argparse
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
 from utils.data_load import Data_load
 from utils.utils import *
 from methods.train import Train
@@ -41,7 +40,7 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
     torch.manual_seed(7)
-    elogger = logger.Logger('run_log_mscgnn'+args.filename)
+    elogger = logger.Logger('run_log_tuckergode'+args.filename)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_set = Data_load(args)
     # generate data_loader
@@ -59,9 +58,11 @@ if __name__ == '__main__':
 
     num_of_nodes = data_set['num_nodes']
     input_features = data_set['input_features']
+    output_features = 1;
     model = TensorGODEForecast(
         num_nodes=num_of_nodes,
         num_features=input_features,
+        output_features = output_features,
         num_timesteps_input=args.timesteps_input,
         num_timesteps_output=args.timesteps_output,
         hidden_dim=args.nhid,

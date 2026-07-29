@@ -135,7 +135,7 @@ class TensorGODEForecast(nn.Module):
     """Tucker encoder, stacked dynamic first-order GODEs, and forecast decoder."""
 
     def __init__(
-        self, num_nodes: int, num_features: int, num_timesteps_input: int,
+        self, num_nodes: int, num_features: int, output_features: int, num_timesteps_input: int,
         num_timesteps_output: int, hidden_dim: int = 32, rank_nodes: int = 32,
         rank_time: int = 6, rank_features: int = 4, num_ode_layers: int = 2,
         attention_dim: Optional[int] = None, ode_time: float = 1.0,
@@ -146,6 +146,7 @@ class TensorGODEForecast(nn.Module):
             raise ValueError("num_ode_layers must be at least 1.")
         self.num_nodes = num_nodes
         self.num_features = num_features
+        self.output_features = output_features
         self.num_timesteps_input = num_timesteps_input
         self.num_timesteps_output = num_timesteps_output
         self.encoder = TuckerEncoder(num_nodes, num_timesteps_input, num_features,
@@ -154,7 +155,7 @@ class TensorGODEForecast(nn.Module):
             TensorGODEBlock(hidden_dim, attention_dim, ode_time, ode_solver, euler_steps)
             for _ in range(num_ode_layers)
         )
-        self.decoder = nn.Linear(hidden_dim, num_timesteps_output * num_features)
+        self.decoder = nn.Linear(hidden_dim, num_timesteps_output * output_features)
 
     def forward(self, x: Tensor) -> Tensor:
         expected = (self.num_nodes, self.num_timesteps_input, self.num_features)
@@ -164,5 +165,12 @@ class TensorGODEForecast(nn.Module):
         h = h0
         for ode_layer in self.ode_layers:
             h = ode_layer(h, h0)
-        prediction = self.decoder(h)
-        return prediction.view(x.shape[0], self.num_nodes, self.num_timesteps_output, self.num_features)
+        # prediction = self.decoder(h)
+        prediction = self.decoder(h).view(
+            x.shape[0],
+            self.num_nodes,
+            self.num_timesteps_output,
+            self.output_features,
+        )
+        return prediction.squeeze(-1) if self.output_features == 1 else prediction
+        # return prediction.view(x.shape[0], self.num_nodes, self.num_timesteps_output, self.num_features)
