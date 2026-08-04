@@ -18,7 +18,8 @@ files = {
     'pemsD7L': ['PeMSD7L/PeMSD7L.npz', 'PeMSD7L/distance.csv'],
     'metr-la': ['METR-LA/METR-LA.npz', 'METR-LA/distances_la.csv', 'METR-LA/graph_sensor_ids.txt'],
     'randomuniformity': ['RandomUniformity/V_flow_50.npz', 'RandomUniformity/V_flow_50.csv'],
-    'smallscaleaggregation': ['SmallScaleAggregation/V_flow_50.npz', 'SmallScaleAggregation/V_flow_50.csv']
+    'smallscaleaggregation': ['SmallScaleAggregation/V_flow_50.npz', 'SmallScaleAggregation/V_flow_50.csv'],
+    'electric': ['TSdata/Electricity.npz', 'TSdata/Electricity.csv']
 }
 
 class DatasetPEMS(Dataset):

@@ -1,9 +1,10 @@
 import math
 import os
 import argparse
+import datetime
 import torch
 import torch.nn as nn
-from utils.data_load import Data_load
+from utils.data_load_ts import Data_load
 from utils.utils import *
 from methods.train import Train
 from methods.evaluate import Evaluate
@@ -18,8 +19,8 @@ if torch.cuda.is_available():
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--filename', type=str, default='pems08')
-parser.add_argument('--batch_size', type=int, default=32)
+parser.add_argument('--filename', type=str, default='electricity', help='electricity, traffic, weather, ETTm1, ETTm2, ETTh1, ETTh2, exchange')
+parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--timesteps_input', type=int, default=12)
 parser.add_argument('--timesteps_output', type=int, default=12)
@@ -39,8 +40,14 @@ args = parser.parse_args()
 
 
 if __name__ == '__main__':
+    suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M")
     torch.manual_seed(7)
-    elogger = logger.Logger('run_log_tuckergode'+args.filename)
+    elogger = logger.Logger(
+        f'test_run_log_tuckergode_batch_{args.batch_size}'
+        f'_epochs_{args.epochs}'
+        f'_dataset_{args.filename}'
+        f'{suffix}'
+    )
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_set = Data_load(args)
     # generate data_loader
@@ -77,7 +84,7 @@ if __name__ == '__main__':
     # init change lr fucntion
     batches_per_epoch = math.floor(data_set['train_input'].shape[0]/args.batch_size)
     lr_fn = learning_rate_with_decay(args, args.batch_size, batch_denom=args.batch_size,
-                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[80,], decay_rates=[1, 0.1])
+                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[20,], decay_rates=[0.1, 0.1])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     L2 = nn.MSELoss()
@@ -143,7 +150,9 @@ if __name__ == '__main__':
                 loss = L2(pred_index, val_target_index)
                 val_loss.append(loss)
 
-                filePath = f"./results/{args.filename}/run_log_mscgnn/"
+
+
+                filePath = f"./results/{args.filename}/run_log_tuckergode_{suffix}"
                 if not os.path.exists(filePath):
                     os.makedirs(filePath)
                 if ((epoch + 1) % 50 == 0) & (epoch != 0) & (epoch > 100):
