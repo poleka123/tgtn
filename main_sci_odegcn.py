@@ -21,7 +21,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 parser = argparse.ArgumentParser()
 parser.add_argument('--filename', type=str, default='electricity', help='electricity, traffic, weather, ETTm1, ETTm2, ETTh1, ETTh2, exchange')
 parser.add_argument('--batch_size', type=int, default=64)
-parser.add_argument('--epochs', type=int, default=200)
+parser.add_argument('--epochs', type=int, default=300)
 parser.add_argument('--timesteps_input', type=int, default=12)
 parser.add_argument('--timesteps_output', type=int, default=12)
 parser.add_argument('--nhid', type=int, default=16, help='number of hidden units per layer (default: 32)')
@@ -73,8 +73,8 @@ if __name__ == '__main__':
         num_timesteps_input=args.timesteps_input,
         num_timesteps_output=args.timesteps_output,
         hidden_dim=args.nhid,
-        rank_nodes=args.tucker_rank_nodes,
-        rank_time=args.tucker_rank_time,
+        rank_nodes=321,
+        rank_time=48,
         rank_features=args.tucker_rank_features,
         num_ode_layers=args.ode_layers,
         ode_time=args.ode_time,
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     # init change lr fucntion
     batches_per_epoch = math.floor(data_set['train_input'].shape[0]/args.batch_size)
     lr_fn = learning_rate_with_decay(args, args.batch_size, batch_denom=args.batch_size,
-                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[20,], decay_rates=[0.1, 0.1])
+                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[100,100], decay_rates=[1, 0.1])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     L2 = nn.MSELoss()
