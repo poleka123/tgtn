@@ -84,7 +84,7 @@ if __name__ == '__main__':
     # init change lr fucntion
     batches_per_epoch = math.floor(data_set['train_input'].shape[0]/args.batch_size)
     lr_fn = learning_rate_with_decay(args, args.batch_size, batch_denom=args.batch_size,
-                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[100,100], decay_rates=[1, 0.1])
+                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[50,100], decay_rates=[1, 0.1])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     L2 = nn.MSELoss()
