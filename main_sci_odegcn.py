@@ -22,8 +22,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--filename', type=str, default='electricity', help='electricity, traffic, weather, ETTm1, ETTm2, ETTh1, ETTh2, exchange')
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=300)
-parser.add_argument('--timesteps_input', type=int, default=12)
-parser.add_argument('--timesteps_output', type=int, default=12)
+parser.add_argument('--timesteps_input', type=int, default=24)
+parser.add_argument('--timesteps_output', type=int, default=24)
 parser.add_argument('--nhid', type=int, default=16, help='number of hidden units per layer (default: 32)')
 parser.add_argument('--tucker_rank_nodes', type=int, default=32)
 parser.add_argument('--tucker_rank_time', type=int, default=6)
@@ -32,8 +32,8 @@ parser.add_argument('--ode_layers', type=int, default=2)
 parser.add_argument('--ode_time', type=float, default=1.0)
 parser.add_argument('--ode_solver', type=str, default='rk4', choices=['euler', 'midpoint', 'rk4', 'dopri5'])
 parser.add_argument('--ode_euler_steps', type=int, default=4)
-parser.add_argument('--time_slice', type=int, default=12)
-parser.add_argument('--lr', type=float, default=0.001)
+parser.add_argument('--time_slice', type=int, default=24)
+parser.add_argument('--lr', type=float, default=0.01)
 parser.add_argument('--model_name', type=str, default='ablation_model')
 
 args = parser.parse_args()
@@ -73,8 +73,8 @@ if __name__ == '__main__':
         num_timesteps_input=args.timesteps_input,
         num_timesteps_output=args.timesteps_output,
         hidden_dim=args.nhid,
-        rank_nodes=321,
-        rank_time=48,
+        rank_nodes=64,
+        rank_time=24,
         rank_features=args.tucker_rank_features,
         num_ode_layers=args.ode_layers,
         ode_time=args.ode_time,
@@ -84,13 +84,20 @@ if __name__ == '__main__':
     # init change lr fucntion
     batches_per_epoch = math.floor(data_set['train_input'].shape[0]/args.batch_size)
     lr_fn = learning_rate_with_decay(args, args.batch_size, batch_denom=args.batch_size,
-                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[50,200], decay_rates=[
-            0.1, 0.1])
+                                     batches_per_epoch=batches_per_epoch, boundary_epochs=[50,200], decay_rates=[1,0.1, 0.1])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     L2 = nn.MSELoss()
 
     for epoch in range(args.epochs):
+        lr = lr_fn(epoch)
+        # change learning rate
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr_fn(epoch)
+        print(
+            f"Epoch {epoch}, lr={optimizer.param_groups[0]['lr']}"
+        )
+        print("################################################s")
         print("Train Process")
         permutation = torch.randperm(data_set['train_input'].shape[0])
         epoch_training_losses = []
@@ -100,11 +107,6 @@ if __name__ == '__main__':
         for i, [X_batch, y_batch] in enumerate(train_loader):
             model.train()
             optimizer.zero_grad()
-
-            # change learning rate
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr_fn(epoch)
-
             # indices = permutation[i:i+args.batch_size]
             # X_batch, y_batch = data_set['train_input'][indices], data_set['train_target'][indices]
 

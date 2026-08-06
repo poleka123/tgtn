@@ -172,19 +172,34 @@ def generate_adjmatrix(args):
 
     return sp_matrix
 
-def learning_rate_with_decay(args, batch_size, batch_denom, batches_per_epoch, boundary_epochs, decay_rates):
-    initial_learning_rate = args.lr * batch_size / batch_denom
+# def learning_rate_with_decay(args, batch_size, batch_denom, batches_per_epoch, boundary_epochs, decay_rates):
+#     initial_learning_rate = args.lr * batch_size / batch_denom
+#
+#     # boundaries = [int(batches_per_epoch * epoch) for epoch in boundary_epochs]
+#     boundaries = [epoch for epoch in boundary_epochs]
+#     vals = [initial_learning_rate * decay for decay in decay_rates]
+#
+#     def learning_rate_fn(itr):
+#         lt = [itr < b for b in boundaries] + [True]
+#         i = np.argmax(lt)
+#         return vals[i]
+#
+#     return learning_rate_fn
 
-    # boundaries = [int(batches_per_epoch * epoch) for epoch in boundary_epochs]
-    boundaries = [epoch for epoch in boundary_epochs]
-    vals = [initial_learning_rate * decay for decay in decay_rates]
-
-    def learning_rate_fn(itr):
-        lt = [itr < b for b in boundaries] + [True]
-        i = np.argmax(lt)
-        return vals[i]
-
-    return learning_rate_fn
+def learning_rate_with_decay(args,batch_size,batch_denom,batches_per_epoch,boundary_epochs,decay_rates):
+    initial_learning_rate = (
+        args.lr * batch_size / batch_denom
+    )
+    def lr_fn(epoch):
+        lr = initial_learning_rate
+        for boundary, decay in zip(
+            boundary_epochs,
+            decay_rates
+        ):
+            if epoch >= boundary:
+                lr *= decay
+        return lr
+    return lr_fn
 
 
 def generate_asist_dataset(X, num_timesteps_input, num_timesteps_output):

@@ -13,9 +13,11 @@ def Data_load(args):
     # metrla
     # data = np.load(filepath + file[0])['data'][:5760].astype(np.float32)
     # pems08
-    data = np.load(filepath + file[0])['data'][:8640].astype(np.float32)
+    # data = np.load(filepath + file[0])['data'][:8640].astype(np.float32)
     # pems04
     # data = np.load(filepath + file[0])['data'][:2304].astype(np.float32)
+    # electric
+    data = np.load(filepath + file[0])['data'][:].astype(np.float32)
 
     if len(data.shape) == 2:
         data = np.expand_dims(data, axis=-1)
