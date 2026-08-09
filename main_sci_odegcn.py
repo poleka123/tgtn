@@ -19,12 +19,12 @@ if torch.cuda.is_available():
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--filename', type=str, default='electricity', help='electricity, traffic, weather, ETTm1, ETTm2, ETTh1, ETTh2, exchange')
+parser.add_argument('--filename', type=str, default='weather', help='electricity, traffic, weather, ETTm1, ETTm2, ETTh1, ETTh2, ILI exchange')
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=300)
 parser.add_argument('--timesteps_input', type=int, default=24)
 parser.add_argument('--timesteps_output', type=int, default=24)
-parser.add_argument('--nhid', type=int, default=16, help='number of hidden units per layer (default: 32)')
+parser.add_argument('--nhid', type=int, default=32, help='number of hidden units per layer (default: 32)')
 parser.add_argument('--tucker_rank_nodes', type=int, default=32)
 parser.add_argument('--tucker_rank_time', type=int, default=6)
 parser.add_argument('--tucker_rank_features', type=int, default=4)

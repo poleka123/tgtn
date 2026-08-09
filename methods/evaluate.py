@@ -1,68 +1,107 @@
-# encoding utf-8
-
-import torch
-from utils.utils import RMSE, MAE, SMAPE
-from utils.utils import Un_Z_Score
-import numpy as np
+# methods/evaluate.py
 import os
+import numpy as np
+import torch
+from utils.utils import RMSE, MAE, SMAPE, Un_Z_Score
+from methods.forward import model_forward
 
 
-def Cal_eval_index(epoch, pred, loss_meathod, val_target, time_slice, mean, std, device):
-    val_index = {}
-    val_index['MAE'] = []
-    val_index['RMSE'] = []
-    val_index['sMAPE'] = []
+def _compute_metrics(pred_index, target_index, criterion, mean, std):
+    """对单个时间步计算反标准化后的 loss 与 MAE/RMSE/sMAPE。"""
+    pred_index = Un_Z_Score(pred_index, mean, std)
+    target_index = Un_Z_Score(target_index, mean, std)
+    loss = criterion(pred_index, target_index)
+    return {
+        'loss': loss,
+        'MAE': MAE(target_index, pred_index),
+        'RMSE': RMSE(target_index, pred_index),
+        'sMAPE': SMAPE(target_index, pred_index),
+        'pred': pred_index,
+        'target': target_index,
+    }
+
+
+def evaluate(model, data_set, criterion, device, epoch, time_slice,
+             results_dir, save_preds=False):
+    """
+    在验证集上评估（全量 forward，与当前 main 一致）。
+
+    Returns
+    -------
+    val_loss : list[Tensor]   每个 time step 的 MSE
+    val_index : dict          MAE / RMSE / sMAPE 列表
+    """
+    model.eval()
+    std = torch.tensor(data_set['data_std']).to(device)
+    mean = torch.tensor(data_set['data_mean']).to(device)
+
+    eval_input = data_set['eval_input'].to(device)
+    eval_target = data_set['eval_target'].to(device)
+
+    with torch.no_grad():
+        pred = model_forward(model, eval_input, data_set, device)
+
     val_loss = []
+    val_index = {'MAE': [], 'RMSE': [], 'sMAPE': []}
 
-    if torch.cuda.is_available():
-        mean = torch.tensor(mean).to(device)
-        std = torch.tensor(std).to(device)
+    if save_preds and not os.path.exists(results_dir):
+        os.makedirs(results_dir)
 
-    for item in time_slice:
-        pred_index = pred[:, :, item - 1]
-        val_target_index = val_target[:, :, item - 1]
-        pred_index, val_target_index = Un_Z_Score(pred_index, mean, std), Un_Z_Score(val_target_index, mean, std)
+    for item in range(1, time_slice + 1):
+        pred_step = pred[:, :, item - 1]
+        target_step = eval_target[:, :, item - 1]
+        metrics = _compute_metrics(pred_step, target_step, criterion, mean, std)
 
-        loss = loss_meathod(pred_index, val_target_index)
-        val_loss.append(loss)
+        val_loss.append(metrics['loss'])
+        val_index['MAE'].append(metrics['MAE'])
+        val_index['RMSE'].append(metrics['RMSE'])
+        val_index['sMAPE'].append(metrics['sMAPE'])
 
-        filePath = "./results/gcnn1/"
-        if not os.path.exists(filePath):
-            os.makedirs(filePath)
-
-        if not os.path.exists(filePath):
-            os.makedirs(filePath)
-        if ((epoch+1) % 50 == 0) & (epoch != 0) & (epoch > 200):
-            np.savetxt(filePath + "/pred_" + str(epoch) + ".csv", pred_index.cpu(), delimiter=',')
-            np.savetxt(filePath + "/true_" + str(epoch) + ".csv", val_target_index.cpu(), delimiter=',')
-
-        mae = MAE(val_target_index, pred_index)
-        val_index['MAE'].append(mae)
-
-        rmse = RMSE(val_target_index, pred_index)
-        val_index['RMSE'].append(rmse)
-
-        smape = SMAPE(val_target_index, pred_index)
-        val_index['sMAPE'].append(smape)
+        # 与 main 一致：epoch>100 且每 50 epoch 保存一次
+        if save_preds:
+            np.savetxt(
+                os.path.join(results_dir, f"pred_{epoch}.csv"),
+                metrics['pred'].cpu().numpy(),
+                delimiter=',',
+            )
+            np.savetxt(
+                os.path.join(results_dir, f"true_{epoch}.csv"),
+                metrics['target'].cpu().numpy(),
+                delimiter=',',
+            )
 
     return val_loss, val_index
 
 
-def Evaluate(epoch, model, loss_meathod, NATree, time_slice, data_set, device):
-    model.eval()
-    eval_input = data_set['eval_input']
-    eval_target = data_set['eval_target']
-    X_timestamp = data_set['eval_input_time']
-    y_timestamp = data_set['eval_target_time']
-    ids = data_set['ids']
-    all_Kmask = data_set['all_Kmask']
+def should_save_preds(epoch):
+    """是否与 main 中相同的 pred 保存条件。"""
+    return (epoch + 1) % 50 == 0 and epoch != 0 and epoch > 100
 
-    # if torch.cuda.is_available():
-    eval_input = eval_input.to(device)
-    eval_target = eval_target.to(device)
-    X_timestamp = X_timestamp.to(device)
-    y_timestamp = y_timestamp.to(device)
-    perd = model(eval_input, NATree, X_timestamp, ids, all_Kmask)
 
-    eval_loss, eval_index = Cal_eval_index(epoch, perd, loss_meathod, eval_target, time_slice, data_set['data_mean'], data_set['data_std'], device)
-    return eval_loss, eval_index
+def log_eval_metrics(epoch, epochs, train_loss, val_loss, val_index,
+                     time_slice, elogger=None, time_stride=5):
+    """打印并写入日志（从 main 抽出的重复代码）。"""
+    sep = "---------------------------------------------------------------------------------------------------"
+    print(sep)
+    print(f"epoch: {epoch}/{epochs}")
+    print(f"Training loss: {train_loss}")
+
+    if elogger is not None:
+        elogger.log(f"Epoch:{epoch}")
+        elogger.log(f"Training loss: {train_loss}")
+
+    n = time_slice
+    for i in range(1, n + 1):
+        idx = -(n - i)
+        msg = (
+            f"time:{i * time_stride}, Evaluation loss:{val_loss[idx]}, "
+            f"MAE:{val_index['MAE'][idx]}, RMSE:{val_index['RMSE'][idx]}, "
+            f"sMAPE:{val_index['sMAPE'][idx]}"
+        )
+        print(msg)
+        if elogger is not None:
+            elogger.log(msg)
+
+    if elogger is not None:
+        elogger.log("-----------")
+    print(sep)

@@ -18,9 +18,14 @@ def Data_load(args):
         'ETTm2',
         'ETTh1',
         'ETTh2',
+        'ILI',
         'exchange'
     ]:
-        data = pd.read_csv(filepath + filename + ".csv", nrows=8640)
+        # nrows=0仅读取表头，不加载数据
+        temp_df = pd.read_csv(filepath + filename + ".csv", nrows=0)
+        total_cols = len(temp_df.columns)
+        # data = pd.read_csv(filepath + filename + ".csv", nrows=8640)
+        data = pd.read_csv(filepath + filename + ".csv", nrows=8640, usecols=range(total_cols - 1))
 
         data = data.select_dtypes(
             include=[np.number]
