@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 from typing import Callable, Dict
-
+import torch
 import torch.nn as nn
 
 from model.base import DataMeta
 from model.tucker_gode import TensorGODEForecast
+from model.gcn import GCNForecast
+from model.gat import GATForecast
+from model.dcrnn import DCRNNForecast
+from model.mtgnn.net import MTGNNForecast
 
 ModelBuilder = Callable[..., nn.Module]
 
@@ -19,9 +23,43 @@ def register_model(name: str):
         return fn
     return decorator
 
+@register_model("mtgnn")
+def build_mtgnn(args, meta: DataMeta) -> nn.Module:
+    adj = None
+    # 从 data_set 中取出预计算邻接矩阵
+    data_set_adj = None
+    try:
+        from data.loader import Data_load
+        _ = Data_load  # 仅确保模块存在
+    except ImportError:
+        pass
+    return MTGNNForecast(
+        num_nodes=meta.num_nodes,
+        input_features=meta.input_features,
+        output_features=meta.output_features,
+        num_timesteps_input=args.timesteps_input,
+        num_timesteps_output=args.timesteps_output,
+        gcn_true=True,
+        buildA_true=False,           # 用外部传入的 adj，不内部构建
+        gcn_depth=2,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        layers=3,
+        dropout=0.3,
+    )
+
 
 @register_model("tuckergode")
 def build_tuckergode(args, meta: DataMeta) -> nn.Module:
+    # rank_nodes: 优先用 args，兜底为 num_nodes * ratio，上限不超过 num_nodes
+    rank_nodes = args.tucker_rank_nodes if getattr(args, 'tucker_rank_nodes', None) else \
+                 int(meta.num_nodes * getattr(args, 'tucker_rank_nodes_ratio', 0.8))
+    rank_nodes = min(rank_nodes, meta.num_nodes)
+    # rank_time: 优先用 args，否则自动设为 input_steps 的一半
+    rank_time_raw = getattr(args, 'tucker_rank_time', None)
+    if rank_time_raw:
+        rank_time = min(rank_time_raw, meta.input_steps)
+    else:
+        rank_time = max(meta.input_steps // 2, 1)    
     # 与 main_sci_odegcn.py 当前硬编码保持一致
     return TensorGODEForecast(
         num_nodes=meta.num_nodes,
@@ -30,15 +68,56 @@ def build_tuckergode(args, meta: DataMeta) -> nn.Module:
         num_timesteps_input=args.timesteps_input,
         num_timesteps_output=args.timesteps_output,
         hidden_dim=args.nhid,
-        rank_nodes=64,                              # 当前 main 写死值
-        rank_time=24,                               # 当前 main 写死值
+        rank_nodes=rank_nodes,                              # 当前 main 写死值
+        rank_time=rank_time,                               # 当前 main 写死值
         rank_features=args.tucker_rank_features,
         num_ode_layers=args.ode_layers,
         ode_time=args.ode_time,
         ode_solver=args.ode_solver,
         euler_steps=args.ode_euler_steps,
     )
+@register_model("gcn")
+def build_GCNForecast(args, meta: DataMeta) -> nn.Module:
+    return GCNForecast(
+        num_nodes=meta.num_nodes,
+        input_features=meta.input_features,
+        output_features=meta.output_features,
+        num_timesteps_input=args.timesteps_input,
+        num_timesteps_output=args.timesteps_output,
+        hidden_dim=args.nhid,
+        num_layers=2,
+)
+@register_model("gat")
+def build_gat(args, meta: DataMeta) -> nn.Module:
+    return GATForecast(
+        num_nodes=meta.num_nodes,
+        input_features=meta.input_features,
+        output_features=meta.output_features,
+        num_timesteps_input=args.timesteps_input,
+        num_timesteps_output=args.timesteps_output,
+        hidden_dim=args.nhid,
+        num_heads=4,
+        num_layers=2,
+    )
+@register_model("dcrnn")
+def build_dcrnn(args, meta: DataMeta) -> nn.Module:
+    return DCRNNForecast(
+        num_nodes=meta.num_nodes,
+        input_features=meta.input_features,
+        output_features=meta.output_features,
+        num_timesteps_input=args.timesteps_input,
+        num_timesteps_output=args.timesteps_output,
+        hidden_dim=args.nhid,
+        num_layers=2,
+    )
 
+MODEL_GRAPH_REQUIREMENTS = {
+    "tuckergode": False,
+    "gcn":True,
+    "gat":True,
+    "dcrnn": True,
+    "mtgnn": True,
+}
 
 def build_model(model_name: str, args, data_set: dict, output_features: int = 1) -> nn.Module:
     if model_name not in MODEL_REGISTRY:
@@ -53,11 +132,3 @@ def build_model(model_name: str, args, data_set: dict, output_features: int = 1)
 
 def list_models():
     return sorted(MODEL_REGISTRY.keys())
-
-MODEL_GRAPH_REQUIREMENTS = {
-    "tuckergode": False,
-    # Step 4 预留
-    # "gcn": True,
-    # "gat": True,
-    # "mtgnn": True,
-}

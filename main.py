@@ -23,27 +23,29 @@ parser.add_argument('--filename', type=str, default='weather',
                     help='TS: electricity/traffic/weather/ETTm1/...; PEMS: pems08/pems04/...')
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--epochs', type=int, default=300)
-parser.add_argument('--timesteps_input', type=int, default=24)
-parser.add_argument('--timesteps_output', type=int, default=24)
+parser.add_argument('--timesteps_input', type=int, default=12)
+parser.add_argument('--timesteps_output', type=int, default=1)
 parser.add_argument('--nhid', type=int, default=32,
                     help='number of hidden units per layer (default: 32)')
-parser.add_argument('--tucker_rank_nodes', type=int, default=32)
-parser.add_argument('--tucker_rank_time', type=int, default=6)
+parser.add_argument('--tucker_rank_nodes', type=int, default=None)
+parser.add_argument('--tucker_rank_time', type=int, default=None, help='Tucker time rank (default: half of timesteps_input)')
 parser.add_argument('--tucker_rank_features', type=int, default=4)
+parser.add_argument('--tucker_rank_nodes_ratio', type=float, default=0.3,
+                    help='ratio to auto-derive rank_nodes from num_nodes (default: 0.3)')
 parser.add_argument('--ode_layers', type=int, default=2)
 parser.add_argument('--ode_time', type=float, default=1.0)
 parser.add_argument('--ode_solver', type=str, default='rk4',
                     choices=['euler', 'midpoint', 'rk4', 'dopri5'])
 parser.add_argument('--ode_euler_steps', type=int, default=4)
 parser.add_argument('--time_slice', type=int, default=24)
-parser.add_argument('--lr', type=float, default=0.01)
+parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--lr_milestones', type=int, nargs='+', default=[50, 200],
                     help='epoch boundaries for lr decay')
 parser.add_argument('--lr_decay_rates', type=float, nargs='+', default=[0.1, 0.1],
                     help='multiplicative decay at each milestone (方案 A)')
 
 # Step 3: 图结构参数
-parser.add_argument('--graph_type', type=str, default='none',
+parser.add_argument('--graph_type', type=str, default='correlation',
                     choices=['none', 'identity', 'correlation', 'distance'],
                     help='adjacency construction method')
 parser.add_argument('--graph_threshold', type=float, default=0.3,
@@ -55,9 +57,9 @@ parser.add_argument('--graph_thres', type=float, default=0.5,
 parser.add_argument('--max_rows', type=int, default=8640,
                     help='max time steps loaded from raw data')
 
-parser.add_argument('--model_name', type=str, default='ablation_model')
+parser.add_argument('--model_name', type=str, default='tuckergode')
 parser.add_argument('--model', type=str, default='tuckergode',
-                    choices=['tuckergode'], help='forecast model to train')
+                    choices=['tuckergode', 'gcn', 'gat', 'dcrnn'],help='forecast model to train')
 
 args = parser.parse_args()
 

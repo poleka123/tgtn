@@ -35,6 +35,7 @@ class TuckerEncoder(nn.Module):
         self.feature_factor = nn.Parameter(torch.empty(num_features, self.rank_features))
         self.state_projection = nn.Linear(self.rank_time * self.rank_features, hidden_dim)
         self.state_norm = nn.LayerNorm(hidden_dim)
+        self.dropout = nn.Dropout(0.2)
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -59,13 +60,15 @@ class TuckerEncoder(nn.Module):
         core = torch.einsum("bntc,nr,ts,cu->brsu", x, u_n, u_t, u_c)
         core_mode1 = core.flatten(start_dim=2)  # [B, r_N, r_T * r_C]
         node_state = torch.einsum("nr,brd->bnd", u_n, core_mode1)
-        h0 = self.state_norm(F.gelu(self.state_projection(node_state)))
+        h0 = self.state_norm(self.dropout(F.gelu(self.state_projection(node_state))))
         return h0, core
 
 
 class TensorDynamicODEFunc(nn.Module):
     """The first-order ODEFunc with a state-derived dynamic adjacency matrix."""
 
+    # def __init__(self, hidden_dim: int, attention_dim: Optional[int] = None,
+    #              alpha_init: float = -2.0) -> None:
     def __init__(self, hidden_dim: int, attention_dim: Optional[int] = None) -> None:
         super().__init__()
         self.attention_dim = attention_dim or hidden_dim
@@ -74,7 +77,9 @@ class TensorDynamicODEFunc(nn.Module):
         self.message_projection = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.initial_projection = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.gate = nn.Linear(2 * hidden_dim, hidden_dim)
+        self.dropout = nn.Dropout(0.1)
         self.h0: Optional[Tensor] = None
+        # self.alpha = nn.Parameter(torch.tensor(alpha_init))
 
     def set_initial_state(self, h0: Tensor) -> None:
         self.h0 = h0
@@ -86,10 +91,25 @@ class TensorDynamicODEFunc(nn.Module):
         scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.attention_dim)
         adjacency = torch.softmax(scores, dim=-1)
         message = torch.matmul(adjacency, h)
-        graph_term = F.gelu(self.message_projection(message))
+        graph_term = self.dropout(F.gelu(self.message_projection(message)))
         structural_term = F.gelu(self.initial_projection(self.h0))
         gate = torch.sigmoid(self.gate(torch.cat([h, self.h0], dim=-1)))
         return gate * graph_term + (1.0 - gate) * structural_term
+
+    # def forward(self, t: Tensor, h: Tensor) -> Tensor:
+    #     if self.h0 is None:
+    #         raise RuntimeError("Set the Tucker initial state before integrating the ODE.")
+    #     query, key = self.query(h), self.key(h)
+    #     scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.attention_dim)
+    #     adjacency = torch.softmax(scores, dim=-1)
+    #     message = torch.matmul(adjacency, h)
+    #     graph_term = F.gelu(self.message_projection(message))
+
+    #     structural_term = self.initial_projection(self.h0)  # 不再通过 gate
+
+    #     # 用可学习的 alpha 控制 h0 的影响强度（初始值小，强制先学图结构）
+    #     alpha = torch.sigmoid(self.alpha)  # alpha 是 nn.Parameter，初始值建议为 -2.0
+    #     return graph_term + alpha * structural_term
 
 
 class FirstOrderODEBlock(nn.Module):

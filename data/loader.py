@@ -23,13 +23,22 @@ TS_DATASETS = [
 
 def _load_ts_csv(filename: str, max_rows: int = 8640) -> np.ndarray:
     filepath = "./data_set/TSdata/"
-    temp_df = pd.read_csv(filepath + filename + ".csv", nrows=0)
+    # temp_df = pd.read_csv(filepath + filename + ".csv", nrows=0)
+    full_path = filepath + filename + ".csv"
+    try:
+        temp_df = pd.read_csv(full_path, nrows=0, encoding="utf-8")
+    except UnicodeDecodeError:
+        temp_df = pd.read_csv(full_path, nrows=0, encoding="gbk")
     total_cols = len(temp_df.columns)
-    data = pd.read_csv(
-        filepath + filename + ".csv",
-        nrows=max_rows,
-        usecols=range(total_cols - 1),
-    )
+    # data = pd.read_csv(
+    #     filepath + filename + ".csv",
+    #     nrows=max_rows,
+    #     usecols=range(total_cols - 1),
+    # )
+    try:
+        data = pd.read_csv(full_path, nrows=max_rows, usecols=range(total_cols - 1), encoding="utf-8")
+    except UnicodeDecodeError:
+        data = pd.read_csv(full_path, nrows=max_rows, usecols=range(total_cols - 1), encoding="gbk")
     data = data.select_dtypes(include=[np.number]).values.astype(np.float32)
 
     if filename in ["electricity", "traffic"]:

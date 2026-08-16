@@ -19,7 +19,17 @@ files = {
     'metr-la': ['METR-LA/METR-LA.npz', 'METR-LA/distances_la.csv', 'METR-LA/graph_sensor_ids.txt'],
     'randomuniformity': ['RandomUniformity/V_flow_50.npz', 'RandomUniformity/V_flow_50.csv'],
     'smallscaleaggregation': ['SmallScaleAggregation/V_flow_50.npz', 'SmallScaleAggregation/V_flow_50.csv'],
-    'electric': ['TSdata/Electricity.npz', 'TSdata/Electricity.csv']
+    # 'electric': ['TSdata/Electricity.npz', 'TSdata/Electricity.csv']
+    # ---------- 补全 TSdata 下的数据集 ----------
+    'electricity':  ['TSdata/Electricity.csv'],           # 321 节点，小时级用电量
+    'traffic':      ['TSdata/Traffic.csv'],              # 963 节点，小时级交通流量
+    'weather':      ['TSdata/Weather.csv'],               # 21 节点，小时级天气
+    'exchange':     ['TSdata/Exchange.csv'],              # 8 节点，日级汇率
+    'ili':          ['TSdata/ILI.csv'],                   # 美国流感样疾病发病率
+    'etth1':        ['TSdata/ETTh1.csv'],                 # 变压器油温，小时级
+    'etth2':        ['TSdata/ETTh2.csv'],                 # 变压器油温，小时级
+    'ettm1':        ['TSdata/ETTm1.csv'],                 # 变压器油温，分钟级（15min）
+    'ettm2':        ['TSdata/ETTm2.csv'],                 # 变压器油温，分钟级（15min）
 }
 
 class DatasetPEMS(Dataset):

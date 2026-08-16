@@ -25,3 +25,26 @@ def train_one_epoch(model, train_loader, optimizer, criterion, data_set, device)
         epoch_losses.append(loss.detach().cpu().item())
 
     return sum(epoch_losses) / len(epoch_losses)
+    
+# methods/train.py — train_one_epoch 函数
+
+# def train_one_epoch(model, train_loader, optimizer, criterion, data_set, device):
+#     model.train()
+#     epoch_losses = []
+
+#     for X_batch, y_batch in train_loader:
+#         optimizer.zero_grad()
+
+#         X_batch = X_batch.to(device)
+#         y_batch = y_batch.to(device)
+
+#         pred = model_forward(model, X_batch, data_set, device)
+#         # ---------- 修改：直接用标准化后的数据计算 Loss ----------
+#         loss = criterion(pred, y_batch)
+
+#         loss.backward()
+#         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+#         optimizer.step()
+#         epoch_losses.append(loss.detach().cpu().item())
+
+#     return sum(epoch_losses) / len(epoch_losses)

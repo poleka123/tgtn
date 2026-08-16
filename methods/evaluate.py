@@ -46,8 +46,8 @@ def evaluate(model, data_set, criterion, device, epoch, time_slice,
 
     if save_preds and not os.path.exists(results_dir):
         os.makedirs(results_dir)
-
-    for item in range(1, time_slice + 1):
+    actual_output_steps = pred.shape[2]
+    for item in range(1, actual_output_steps + 1):
         pred_step = pred[:, :, item - 1]
         target_step = eval_target[:, :, item - 1]
         metrics = _compute_metrics(pred_step, target_step, criterion, mean, std)
@@ -90,18 +90,38 @@ def log_eval_metrics(epoch, epochs, train_loss, val_loss, val_index,
         elogger.log(f"Epoch:{epoch}")
         elogger.log(f"Training loss: {train_loss}")
 
-    n = time_slice
-    for i in range(1, n + 1):
-        idx = -(n - i)
-        msg = (
-            f"time:{i * time_stride}, Evaluation loss:{val_loss[idx]}, "
-            f"MAE:{val_index['MAE'][idx]}, RMSE:{val_index['RMSE'][idx]}, "
-            f"sMAPE:{val_index['sMAPE'][idx]}"
-        )
+    n = len(val_loss)
+    for i in range(n):
+        if n==1:
+             # 单步：直接打印 time:1
+            idx = 0
+            msg = (
+                f"time:1, Evaluation loss:{val_loss[idx]}, "
+                f"MAE:{val_index['MAE'][idx]}, RMSE:{val_index['RMSE'][idx]}, "
+                f"sMAPE:{val_index['sMAPE'][idx]}"
+            )
+        else:
+            idx = -(n - i)
+            time_label = i * time_stride
+            msg = (
+                f"time:{time_label}, Evaluation loss:{val_loss[idx]}, "
+                f"MAE:{val_index['MAE'][idx]}, RMSE:{val_index['RMSE'][idx]}, "
+                f"sMAPE:{val_index['sMAPE'][idx]}"
+            )
         print(msg)
         if elogger is not None:
             elogger.log(msg)
+    # for i in range(1, n + 1):
+    #     idx = -(n - i)
+    #     msg = (
+    #         f"time:{i * time_stride}, Evaluation loss:{val_loss[idx]}, "
+    #         f"MAE:{val_index['MAE'][idx]}, RMSE:{val_index['RMSE'][idx]}, "
+    #         f"sMAPE:{val_index['sMAPE'][idx]}"
+    #     )
+    #     print(msg)
+    #     if elogger is not None:
+    #         elogger.log(msg)
 
-    if elogger is not None:
-        elogger.log("-----------")
-    print(sep)
+    # if elogger is not None:
+    #     elogger.log("-----------")
+    # print(sep)
