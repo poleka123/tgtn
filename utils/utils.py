@@ -55,10 +55,18 @@ def Un_Z_Score(matrix, mean, std):
     return (matrix * std) + mean
 
 def RMSE(v, v_):
+    if isinstance(v, np.ndarray):
+        v = torch.from_numpy(v)
+    if isinstance(v_, np.ndarray):
+        v_ = torch.from_numpy(v_)
     return torch.sqrt(torch.mean((v_ - v) ** 2))
 
 
 def MAE(v, v_):
+    if isinstance(v, np.ndarray):
+        v = torch.from_numpy(v)
+    if isinstance(v_, np.ndarray):
+        v_ = torch.from_numpy(v_)
     return torch.mean(torch.abs(v_ - v))
 
 def SMAPE(v, v_):
@@ -68,6 +76,10 @@ def SMAPE(v, v_):
     :param v_: np.ndarray or int, prediction.
     :return: int, MAPE averages on all elements of input.
     """
+    if isinstance(v, np.ndarray):
+        v = torch.from_numpy(v)
+    if isinstance(v_, np.ndarray):
+        v_ = torch.from_numpy(v_)
     return torch.mean(torch.abs((v_ - v) / ((torch.abs(v) + torch.abs(v_)) / 2 + 1e-5)))
 
 def load_matrix(file_path):

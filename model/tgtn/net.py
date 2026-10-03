@@ -55,7 +55,19 @@ class TuckerFactorGraphForecast(nn.Module):
         self.filter_convs, self.gate_convs = nn.ModuleList(), nn.ModuleList()
         self.residual_convs, self.skip_convs = nn.ModuleList(), nn.ModuleList()
         self.gconv1, self.gconv2, self.norm = nn.ModuleList(), nn.ModuleList(), nn.ModuleList()
-        self.context_projs, self.context_gates = nn.ModuleList(), nn.ParameterList()
+        # self.context_projs, self.context_gates = nn.ModuleList(), nn.ParameterList()
+        self.context_proj = None
+        self.context_gate = None
+        if use_tucker:
+            self.context_proj = nn.Conv2d(
+                residual_channels,
+                residual_channels,
+                kernel_size=(1, 1),
+            )
+        self.context_gate = nn.Parameter(torch.tensor(-2.0))
+        #  屏蔽context_gate
+        # self.context_gate = nn.Parameter(torch.tensor(-20.0))
+
 
         new_dilation = 1
         for j in range(1, layers + 1):
@@ -69,8 +81,8 @@ class TuckerFactorGraphForecast(nn.Module):
             if gcn_true:
                 self.gconv1.append(mixprop(conv_channels, residual_channels, gcn_depth, dropout, propalpha))
                 self.gconv2.append(mixprop(conv_channels, residual_channels, gcn_depth, dropout, propalpha))
-            self.context_projs.append(nn.Conv2d(residual_channels, residual_channels, kernel_size=(1, 1)))
-            self.context_gates.append(nn.Parameter(torch.tensor(-2.0)))
+            # self.context_projs.append(nn.Conv2d(residual_channels, residual_channels, kernel_size=(1, 1)))
+            # self.context_gates.append(nn.Parameter(torch.tensor(-2.0)))
             self.norm.append(LayerNorm((residual_channels, num_nodes, actual_len), elementwise_affine=layer_norm_affline))
             new_dilation *= dilation_exponential
 
@@ -81,10 +93,22 @@ class TuckerFactorGraphForecast(nn.Module):
         self.end_conv_1 = nn.Conv2d(skip_channels, end_channels, kernel_size=(1, 1), bias=True)
         self.end_conv_2 = nn.Conv2d(end_channels, self.out_dim, kernel_size=(1, 1), bias=True)
         self.register_buffer("idx", torch.arange(num_nodes), persistent=False)
+        # self._cached_context = None
+        # self._cache_timesteps = -1
 
-    def _global_context(self, target_t: int, dtype: torch.dtype):
-        context = self.tucker.decode().to(dtype=dtype)
-        return F.interpolate(context, size=(self.num_nodes, target_t), mode="bilinear", align_corners=False)
+    # def _global_context(self, target_t: int, dtype: torch.dtype):
+    #     context = self.tucker.decode().to(dtype=dtype)
+    #     return F.interpolate(context, size=(self.num_nodes, target_t), mode="bilinear", align_corners=False)
+        # if self._cached_context is None or self._cache_timesteps != target_t:
+        #     context = self.tucker.decode().to(dtype=dtype)
+        #     self._cached_context = F.interpolate(
+        #         context,
+        #         size=(self.num_nodes, target_t),
+        #         mode="bilinear",
+        #         align_corners=False
+        #     )
+        #     self._cache_timesteps = target_t
+        # return self._cached_context
 
     def forward(self, x: Tensor, adj: Tensor = None) -> Tensor:
         if x.ndim != 4:
@@ -107,8 +131,26 @@ class TuckerFactorGraphForecast(nn.Module):
                 adp = adp.to(device=x.device, dtype=x.dtype)
 
         x = self.start_conv(x)
+        # skip = self.skip0(F.dropout(x, self.dropout, training=self.training))
+        # temporal_factor = self.tucker.temporal_factor if self.use_tucker else None
+        # global_context = self.tucker.decode().to(dtype=x.dtype)
+        # 全局global_context 仅使用一次
+        temporal_factor = None
+        if self.use_tucker:
+            temporal_factor = self.tucker.temporal_factor
+
+            # 只解码与注入一次全局低秩上下文
+            global_context = self.tucker.decode().to(dtype=x.dtype)
+            global_context = F.interpolate(
+                global_context,
+                size=(self.num_nodes, x.size(-1)),
+                mode="bilinear",
+                align_corners=False,
+            )
+            x = x + torch.sigmoid(self.context_gate) * self.context_proj(global_context)
+
         skip = self.skip0(F.dropout(x, self.dropout, training=self.training))
-        temporal_factor = self.tucker.temporal_factor if self.use_tucker else None
+
         for i in range(self.layers):
             residual = x
             x = torch.tanh(self.filter_convs[i](x, temporal_factor)) * torch.sigmoid(self.gate_convs[i](x, temporal_factor))
@@ -118,9 +160,16 @@ class TuckerFactorGraphForecast(nn.Module):
                 x = self.gconv1[i](x, adp) + self.gconv2[i](x, adp.T)
             else:
                 x = self.residual_convs[i](x)
-            if self.use_tucker:
-                global_context = self._global_context(x.size(-1), x.dtype)
-                x = x + torch.sigmoid(self.context_gates[i]) * self.context_projs[i](global_context)
+            # if self.use_tucker:
+            #     # global_context = self._global_context(x.size(-1), x.dtype)
+            #     # x = x + torch.sigmoid(self.context_gates[i]) * self.context_projs[i](global_context)
+            #     block_context = F.interpolate(
+            #         global_context,
+            #         size=(self.num_nodes, x.size(-1)),
+            #         mode="bilinear",
+            #         align_corners=False,
+            #     )
+            #     x = x + torch.sigmoid(self.context_gates[i]) * self.context_projs[i](block_context)
             x = x + residual[..., -x.size(-1):]
             x = self.norm[i](x, self.idx)
 

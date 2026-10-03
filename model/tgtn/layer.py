@@ -162,9 +162,19 @@ class GlobalTuckerRepresentation(nn.Module):
     def temporal_factor(self):
         return F.normalize(self.U_T, p=2, dim=-1)
 
+    # def decode(self):
+    #     channels = F.normalize(self.U_C, p=2, dim=-1)
+    #     context = torch.einsum("ca,nb,td,abd->cnt", channels, self.spatial_factor, self.temporal_factor, self.G)
+    #     return context.unsqueeze(0)
     def decode(self):
-        channels = F.normalize(self.U_C, p=2, dim=-1)
-        context = torch.einsum("ca,nb,td,abd->cnt", channels, self.spatial_factor, self.temporal_factor, self.G)
+        u_c = F.normalize(self.U_C, p=2, dim=-1)
+        u_n = self.spatial_factor
+        u_t = self.temporal_factor
+
+        z = torch.einsum("abd,td->abt", self.G, u_t)
+        z = torch.einsum("abt,nb->ant", z, u_n)
+        context = torch.einsum("ant,ca->cnt", z, u_c)
+
         return context.unsqueeze(0)
 
 

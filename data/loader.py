@@ -18,10 +18,12 @@ TS_DATASETS = [
     "ETTh2",
     "ILI",
     "exchange",
+    "solar_AL",
 ]
-
-
-def _load_ts_csv(filename: str, max_rows: int = 8640) -> np.ndarray:
+# max_rows: int = 1440
+# max_rows: int = 8640
+# max_rows: int = 2160
+def _load_ts_csv(filename: str, max_rows: int) -> np.ndarray:
     filepath = "./data_set/TSdata/"
     # temp_df = pd.read_csv(filepath + filename + ".csv", nrows=0)
     full_path = filepath + filename + ".csv"
@@ -35,6 +37,7 @@ def _load_ts_csv(filename: str, max_rows: int = 8640) -> np.ndarray:
     #     nrows=max_rows,
     #     usecols=range(total_cols - 1),
     # )
+
     try:
         data = pd.read_csv(full_path, nrows=max_rows, usecols=range(total_cols - 1), encoding="utf-8")
     except UnicodeDecodeError:
@@ -48,7 +51,7 @@ def _load_ts_csv(filename: str, max_rows: int = 8640) -> np.ndarray:
     return data
 
 
-def _load_pems_or_npz(filename: str, max_rows: int = 8640) -> np.ndarray:
+def _load_pems_or_npz(filename: str, max_rows: int) -> np.ndarray:
     filepath = "./data_set/"
     file_entry = files[filename]
     npz_path = filepath + file_entry[0]
@@ -67,11 +70,25 @@ def _load_pems_or_npz(filename: str, max_rows: int = 8640) -> np.ndarray:
         data = np.expand_dims(data, axis=-1)
     return data
 
+def _load_solar_al(filename: str, max_rows: int) -> np.ndarray:
+    """读取 solar_AL.txt，格式为纯数值无表头，shape=(时间步, 站点数, 1)"""
+    filepath = f"./data_set/TSdata/{filename}.txt"
+    # shape: (时间步, 站点数)
+    data = np.loadtxt(filepath, delimiter=',', dtype=np.float32)
+    
+    # 只取 max_rows 行
+    data = data[:max_rows]
+    
+    # 扩展为 (时间步, 站点数, 1)，符合模型输入格式
+    data = np.expand_dims(data, axis=-1)
+    return data
 
 def _load_raw_data(args) -> tuple[np.ndarray, str]:
     filename = args.filename
     max_rows = getattr(args, "max_rows", 8640)
 
+    if filename == 'solar_AL':
+        return _load_solar_al(filename, max_rows=max_rows), "ts"
     if filename in TS_DATASETS:
         return _load_ts_csv(filename, max_rows=max_rows), "ts"
 
